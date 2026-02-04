@@ -1,0 +1,71 @@
+Option Explicit
+
+Private Sub Form_Load()
+    Me.Caption = "3D Chess Pawn - Full Rotation (Mouse & Keyboard)"
+    Me.ScaleMode = vbPixels
+
+    picOpenGL.ScaleMode = vbPixels
+    picOpenGL.AutoRedraw = False
+    picOpenGL.BackColor = vbBlack
+    picOpenGL.Move 0, 0, Me.ScaleWidth, Me.ScaleHeight
+
+    InitGL picOpenGL.hDC, picOpenGL.ScaleWidth, picOpenGL.ScaleHeight
+    DrawScene picOpenGL.hDC
+
+    ' penting agar Form_KeyDown menerima tombol panah
+    Me.KeyPreview = True
+End Sub
+
+' ===== Mouse rotate =====
+Private Sub picOpenGL_MouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    If Button = vbLeftButton Then
+        isDragging = True
+        lastMouseX = X
+        lastMouseY = Y
+    End If
+End Sub
+
+Private Sub picOpenGL_MouseMove(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    If isDragging Then
+        rotY = rotY + (X - lastMouseX) * 0.8   ' kiri-kanan ? Y
+        rotX = rotX + (Y - lastMouseY) * 0.8   ' atas-bawah ? X
+
+        ' clamp optional
+        If rotX > 89 Then rotX = 89
+        If rotX < -89 Then rotX = -89
+
+        lastMouseX = X
+        lastMouseY = Y
+
+        DrawScene picOpenGL.hDC
+    End If
+End Sub
+
+Private Sub picOpenGL_MouseUp(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    isDragging = False
+End Sub
+
+' ===== Keyboard rotate =====
+Private Sub Form_KeyDown(KeyCode As Integer, Shift As Integer)
+    Select Case KeyCode
+        Case vbKeyLeft:  rotY = rotY - 5
+        Case vbKeyRight: rotY = rotY + 5
+        Case vbKeyUp:    rotX = rotX - 5
+        Case vbKeyDown:  rotX = rotX + 5
+        Case vbKeyR:     rotX = 0: rotY = 0   ' reset (opsional)
+    End Select
+    DrawScene picOpenGL.hDC
+End Sub
+
+Private Sub Form_Resize()
+    If WindowState <> vbMinimized Then
+        picOpenGL.Move 0, 0, ScaleWidth, ScaleHeight
+        ResizeGLScene picOpenGL.ScaleWidth, picOpenGL.ScaleHeight
+        DrawScene picOpenGL.hDC
+    End If
+End Sub
+
+Private Sub Form_Unload(Cancel As Integer)
+    KillGL picOpenGL.hDC
+End Sub
+

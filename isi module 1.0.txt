@@ -1,0 +1,269 @@
+Option Explicit
+
+'==============================
+' Deklarasi API OpenGL untuk VB6
+'==============================
+Public Declare Function wglCreateContext Lib "opengl32.dll" (ByVal hDC As Long) As Long
+Public Declare Function wglMakeCurrent Lib "opengl32.dll" (ByVal hDC As Long, ByVal hRC As Long) As Long
+Public Declare Function wglDeleteContext Lib "opengl32.dll" (ByVal hRC As Long) As Long
+Public Declare Function SwapBuffers Lib "gdi32.dll" (ByVal hDC As Long) As Long
+Public Declare Function ChoosePixelFormat Lib "gdi32.dll" (ByVal hDC As Long, pfd As PIXELFORMATDESCRIPTOR) As Long
+Public Declare Function SetPixelFormat Lib "gdi32.dll" (ByVal hDC As Long, ByVal iPixelFormat As Long, pfd As PIXELFORMATDESCRIPTOR) As Long
+
+Public Declare Sub glClearColor Lib "opengl32.dll" (ByVal r As Single, ByVal g As Single, ByVal b As Single, ByVal a As Single)
+Public Declare Sub glClear Lib "opengl32.dll" (ByVal mask As Long)
+Public Declare Sub glEnable Lib "opengl32.dll" (ByVal cap As Long)
+Public Declare Sub glShadeModel Lib "opengl32.dll" (ByVal mode As Long)
+Public Declare Sub glViewport Lib "opengl32.dll" (ByVal X As Long, ByVal Y As Long, ByVal w As Long, ByVal h As Long)
+Public Declare Sub glMatrixMode Lib "opengl32.dll" (ByVal mode As Long)
+Public Declare Sub glLoadIdentity Lib "opengl32.dll" ()
+Public Declare Sub glTranslatef Lib "opengl32.dll" (ByVal X As Single, ByVal Y As Single, ByVal z As Single)
+Public Declare Sub glRotatef Lib "opengl32.dll" (ByVal angle As Single, ByVal X As Single, ByVal Y As Single, ByVal z As Single)
+Public Declare Sub glBegin Lib "opengl32.dll" (ByVal mode As Long)
+Public Declare Sub glEnd Lib "opengl32.dll" ()
+Public Declare Sub glVertex3f Lib "opengl32.dll" (ByVal X As Single, ByVal Y As Single, ByVal z As Single)
+Public Declare Sub glNormal3f Lib "opengl32.dll" (ByVal nx As Single, ByVal ny As Single, ByVal nz As Single)
+Public Declare Sub glLightfv Lib "opengl32.dll" (ByVal light As Long, ByVal pname As Long, params As Single)
+Public Declare Sub glMaterialfv Lib "opengl32.dll" (ByVal face As Long, ByVal pname As Long, params As Single)
+
+Public Declare Sub gluPerspective Lib "glu32.dll" (ByVal fovy As Double, ByVal aspect As Double, ByVal zNear As Double, ByVal zFar As Double)
+Public Declare Sub gluLookAt Lib "glu32.dll" (ByVal eyex As Double, ByVal eyey As Double, ByVal eyez As Double, _
+                                              ByVal centerx As Double, ByVal centery As Double, ByVal centerz As Double, _
+                                              ByVal upx As Double, ByVal upy As Double, ByVal upz As Double)
+Public Declare Function gluNewQuadric Lib "glu32.dll" () As Long
+Public Declare Sub gluSphere Lib "glu32.dll" (ByVal qObj As Long, ByVal radius As Double, ByVal slices As Long, ByVal stacks As Long)
+
+'==============================
+' Struktur PixelFormat
+'==============================
+Public Type PIXELFORMATDESCRIPTOR
+    nSize As Integer
+    nVersion As Integer
+    dwFlags As Long
+    iPixelType As Byte
+    cColorBits As Byte
+    cRedBits As Byte
+    cRedShift As Byte
+    cGreenBits As Byte
+    cGreenShift As Byte
+    cBlueBits As Byte
+    cBlueShift As Byte
+    cAlphaBits As Byte
+    cAlphaShift As Byte
+    cAccumBits As Byte
+    cAccumRedBits As Byte
+    cAccumGreenBits As Byte
+    cAccumBlueBits As Byte
+    cAccumAlphaBits As Byte
+    cDepthBits As Byte
+    cStencilBits As Byte
+    cAuxBuffers As Byte
+    iLayerType As Byte
+    bReserved As Byte
+    dwLayerMask As Long
+    dwVisibleMask As Long
+    dwDamageMask As Long
+End Type
+
+'==============================
+' Konstanta
+'==============================
+Public Const PFD_DRAW_TO_WINDOW = &H4
+Public Const PFD_SUPPORT_OPENGL = &H20
+Public Const PFD_DOUBLEBUFFER = &H1
+Public Const PFD_TYPE_RGBA = 0
+Public Const PFD_MAIN_PLANE = 0
+
+Public Const GL_COLOR_BUFFER_BIT = &H4000
+Public Const GL_DEPTH_BUFFER_BIT = &H100
+Public Const GL_DEPTH_TEST = &HB71
+Public Const GL_LIGHTING = &HB50
+Public Const GL_LIGHT0 = &H4000
+Public Const GL_POSITION = &H1203
+Public Const GL_AMBIENT = &H1200
+Public Const GL_DIFFUSE = &H1201
+Public Const GL_SPECULAR = &H1202
+Public Const GL_SMOOTH = &H1D01
+Public Const GL_MODELVIEW = &H1700
+Public Const GL_PROJECTION = &H1701
+Public Const GL_QUAD_STRIP = &H8
+Public Const GL_FRONT = &H404
+
+'==============================
+' Variabel global
+'==============================
+Public hRC As Long
+Public rotX As Single             ' rotasi vertikal (X)
+Public rotY As Single             ' rotasi horizontal (Y)
+Public isDragging As Boolean
+Public lastMouseX As Single
+Public lastMouseY As Single
+
+'==============================
+' Inisialisasi OpenGL
+'==============================
+Public Sub InitGL(picHDC As Long, width As Long, height As Long)
+    Dim pfd As PIXELFORMATDESCRIPTOR
+    Dim iFormat As Long
+
+    With pfd
+        .nSize = Len(pfd)
+        .nVersion = 1
+        .dwFlags = PFD_DRAW_TO_WINDOW Or PFD_SUPPORT_OPENGL Or PFD_DOUBLEBUFFER
+        .iPixelType = PFD_TYPE_RGBA
+        .cColorBits = 24
+        .cDepthBits = 16
+        .iLayerType = PFD_MAIN_PLANE
+    End With
+
+    iFormat = ChoosePixelFormat(picHDC, pfd)
+    Call SetPixelFormat(picHDC, iFormat, pfd)
+
+    hRC = wglCreateContext(picHDC)
+    Call wglMakeCurrent(picHDC, hRC)
+
+    Call glClearColor(0.55!, 0.39!, 0.24!, 1!)
+    Call glEnable(GL_DEPTH_TEST)
+    Call glShadeModel(GL_SMOOTH)
+    Call InitLighting
+    Call ResizeGLScene(width, height)
+
+    rotX = 0
+    rotY = 0
+End Sub
+
+'==============================
+' Setup Lighting
+'==============================
+Public Sub InitLighting()
+    Dim lightPos(3) As Single
+    Dim lightAmb(3) As Single
+    Dim lightDif(3) As Single
+    Dim lightSpec(3) As Single
+
+    lightPos(0) = 2!: lightPos(1) = 5!: lightPos(2) = 8!: lightPos(3) = 1!
+    lightAmb(0) = 0.2!: lightAmb(1) = 0.2!: lightAmb(2) = 0.2!: lightAmb(3) = 1!
+    lightDif(0) = 0.8!: lightDif(1) = 0.8!: lightDif(2) = 0.8!: lightDif(3) = 1!
+    lightSpec(0) = 1!: lightSpec(1) = 1!: lightSpec(2) = 1!: lightSpec(3) = 1!
+
+    Call glEnable(GL_LIGHTING)
+    Call glEnable(GL_LIGHT0)
+    Call glLightfv(GL_LIGHT0, GL_POSITION, lightPos(0))
+    Call glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmb(0))
+    Call glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDif(0))
+    Call glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpec(0))
+End Sub
+
+'==============================
+' Resize viewport
+'==============================
+Public Sub ResizeGLScene(ByVal width As Long, ByVal height As Long)
+    If height = 0 Then height = 1
+    Call glViewport(0, 0, width, height)
+    Call glMatrixMode(GL_PROJECTION)
+    Call glLoadIdentity
+    Call gluPerspective(45, width / height, 1, 100)
+    Call glMatrixMode(GL_MODELVIEW)
+    Call glLoadIdentity
+End Sub
+
+'==============================
+' Pion (profil revolution)
+'==============================
+Public Sub DrawPawn()
+    Dim angle As Single, stepAngle As Single
+    Dim i As Integer
+
+    stepAngle = 5!
+
+    Dim r(20) As Single
+    Dim Y(20) As Single
+
+    ' base (2 lapis)
+    r(0) = 1.35: Y(0) = 0
+    r(1) = 1.4: Y(1) = 0.05
+    r(2) = 1.3: Y(2) = 0.1
+    r(3) = 1.25: Y(3) = 0.15
+    r(4) = 1.2: Y(4) = 0.2
+    r(5) = 1.05: Y(5) = 0.25
+    r(6) = 1#: Y(6) = 0.3
+    r(7) = 0.95: Y(7) = 0.35
+    r(8) = 0.9: Y(8) = 0.4
+
+    ' body + neck
+    r(9) = 0.75: Y(9) = 0.8
+    r(10) = 0.65: Y(10) = 1.3
+    r(11) = 0.55: Y(11) = 1.7
+    r(12) = 0.5: Y(12) = 1.9
+    r(13) = 0.6: Y(13) = 2#
+    r(14) = 0.45: Y(14) = 2.1
+    r(15) = 0.4: Y(15) = 2.2
+    r(16) = 0#: Y(16) = 2.4
+
+    Dim matColor(3) As Single
+    matColor(0) = 0.9!: matColor(1) = 0.8!: matColor(2) = 0.6!: matColor(3) = 1!
+    Call glMaterialfv(GL_FRONT, GL_AMBIENT, matColor(0))
+    Call glMaterialfv(GL_FRONT, GL_DIFFUSE, matColor(0))
+
+    For i = 0 To 15
+        Call glBegin(GL_QUAD_STRIP)
+        For angle = 0 To 360 Step stepAngle
+            Call glNormal3f(Cos(angle * 3.14159265 / 180#), 0!, Sin(angle * 3.14159265 / 180#))
+            Call glVertex3f(r(i) * Cos(angle * 3.14159265 / 180#), Y(i), r(i) * Sin(angle * 3.14159265 / 180#))
+            Call glVertex3f(r(i + 1) * Cos(angle * 3.14159265 / 180#), Y(i + 1), r(i + 1) * Sin(angle * 3.14159265 / 180#))
+        Next angle
+        Call glEnd
+    Next i
+
+    ' head
+    Dim qObj As Long
+    qObj = gluNewQuadric()
+    Call glTranslatef(0!, Y(15) + 0.45!, 0!)
+    Call gluSphere(qObj, 0.55, 48, 48)
+    Call glTranslatef(0!, -(Y(15) + 0.45!), 0!) ' balikkan translasi lokal
+End Sub
+
+'==============================
+' Render scene (dengan rotasi X & Y)
+'==============================
+Public Sub DrawScene(picHDC As Long)
+    Call glClear(GL_COLOR_BUFFER_BIT Or GL_DEPTH_BUFFER_BIT)
+    Call glLoadIdentity
+
+    ' ======= POSISI KAMERA =======
+    Dim camX As Double, camZ As Double
+    Dim radius As Double
+    radius = 8
+
+    ' Kamera berputar mengelilingi objek sesuai rotY
+    camX = radius * Sin(rotY * 3.14159265 / 180#)
+    camZ = radius * Cos(rotY * 3.14159265 / 180#)
+
+    ' Kamera mengikuti rotY tapi tetap di atas objek
+    Call gluLookAt(camX, 2, camZ, 0, 1.2, 0, 0, 1, 0)
+
+    ' ======= ROTASI OBJEK =======
+    Call glTranslatef(0!, -0.2!, 0!)
+    Call glRotatef(rotX, 1!, 0!, 0!)
+
+    ' ======= MATERIAL =======
+    Dim matColor(3) As Single
+    matColor(0) = 0.8!: matColor(1) = 0.7!: matColor(2) = 0.5!: matColor(3) = 1!
+    Call glMaterialfv(GL_FRONT, GL_AMBIENT, matColor(0))
+    Call glMaterialfv(GL_FRONT, GL_DIFFUSE, matColor(0))
+
+    ' ======= GAMBAR OBJEK =======
+    Call DrawPawn
+
+    Call SwapBuffers(picHDC)
+End Sub
+
+
+'==============================
+' Tutup OpenGL
+'==============================
+Public Sub KillGL(picHDC As Long)
+    Call wglMakeCurrent(picHDC, 0)
+    Call wglDeleteContext(hRC)
+End Sub
+
